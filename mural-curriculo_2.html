@@ -1663,16 +1663,22 @@
 
   <header class="top">
     <div>
-      <p class="eyebrow">extraído das 699 aulas dos dois semestres</p>
-      <h1>Lista de <em>Materiais</em></h1>
+      <p class="eyebrow">baseado no calendário real do 2º semestre</p>
+      <h1>Lista de <em>Compras</em></h1>
     </div>
     <div class="top-meta">
-      12 categorias · 62 itens<br>
+      um mês de cada vez<br>
       marque conforme for comprando
     </div>
   </header>
 
-  <p class="bcci-note">Consolidei os materiais que aparecem repetidos ao longo do 1º e 2º semestre em itens de compra reais — evitei listar coisas como "trabalhos feitos na aula anterior" (não são compráveis). Cada item tem uma nota de onde é usado. Clique no quadradinho pra marcar como comprado — o texto risca automaticamente. Tudo editável: pode ajustar quantidades, remover ou adicionar itens.</p>
+  <p class="bcci-note">Mostra só o que precisa comprar <strong>no mês selecionado</strong>, com base nas aulas reais daquele mês. O 1º semestre não entra aqui (já passou) — começa direto em julho/2026, quando o 2º semestre começa. Navegue pelos meses com as setas.</p>
+
+  <div class="week-nav">
+    <button id="matPrevBtn" onclick="changeMatMonth(-1)">← Mês anterior</button>
+    <span class="week-label" id="matMonthLabel"></span>
+    <button id="matNextBtn" onclick="changeMatMonth(1)">Próximo mês →</button>
+  </div>
 
   <div id="matArea"></div>
 
@@ -8906,54 +8912,6 @@
       ]
     }
   ];
-
-  function renderMaterials(){
-    const area = document.getElementById('matArea');
-    area.innerHTML = '';
-    MAT_DATA.forEach(cat => {
-      const catDiv = document.createElement('div');
-      catDiv.className = 'mat-cat';
-
-      const h3 = document.createElement('h3');
-      h3.contentEditable = true;
-      h3.textContent = cat.cat;
-      catDiv.appendChild(h3);
-
-      cat.items.forEach(([name, note]) => {
-        const row = document.createElement('div');
-        row.className = 'mat-item';
-
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.onchange = function(){
-          nameEl.classList.toggle('checked', cb.checked);
-        };
-
-        const textWrap = document.createElement('div');
-        textWrap.className = 'mat-item-text';
-
-        const nameEl = document.createElement('div');
-        nameEl.className = 'mat-item-name';
-        nameEl.contentEditable = true;
-        nameEl.textContent = name;
-
-        const noteEl = document.createElement('div');
-        noteEl.className = 'mat-item-note';
-        noteEl.contentEditable = true;
-        noteEl.textContent = note;
-
-        textWrap.appendChild(nameEl);
-        textWrap.appendChild(noteEl);
-        row.appendChild(cb);
-        row.appendChild(textWrap);
-        catDiv.appendChild(row);
-      });
-
-      area.appendChild(catDiv);
-    });
-  }
-
-  renderMaterials();
 
   /* ==================================================================
      PLANEJAMENTO SEMANAL — checklist dia a dia, todas as semanas do 2º sem.
@@ -16380,6 +16338,44 @@
     const area = document.getElementById('feedArea');
     area.innerHTML = '';
 
+    // ---- card: minhas tarefas de hoje ----
+    const taskCard = document.createElement('div');
+    taskCard.className = 'feed-card';
+    const h3task = document.createElement('h3');
+    h3task.innerHTML = '✅ Minhas Tarefas de Hoje';
+    taskCard.appendChild(h3task);
+
+    const taskListEl = document.createElement('div');
+    taskListEl.id = 'taskList';
+    taskCard.appendChild(taskListEl);
+
+    const addRow = document.createElement('div');
+    addRow.style.cssText = 'display:flex; gap:8px; margin-top:10px;';
+    const addInput = document.createElement('input');
+    addInput.type = 'text';
+    addInput.placeholder = 'Adicionar tarefa...';
+    addInput.style.cssText = 'flex:1; font-family:"Nunito",sans-serif; font-size:13px; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff;';
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '+ Adicionar';
+    addBtn.style.cssText = 'font-family:"Quicksand",sans-serif; font-size:12px; font-weight:700; background:var(--ochre); color:#fff; border:none; padding:8px 14px; border-radius:4px; cursor:pointer;';
+    function addTaskFromInput(){
+      const val = addInput.value.trim();
+      if(!val) return;
+      const key = 'tasks_' + todayISO;
+      const tasks = JSON.parse(localStorage.getItem(key) || '[]');
+      tasks.push({ text: val, done: false, custom: true });
+      localStorage.setItem(key, JSON.stringify(tasks));
+      addInput.value = '';
+      renderTaskList();
+    }
+    addBtn.onclick = addTaskFromInput;
+    addInput.onkeydown = (e) => { if(e.key === 'Enter') addTaskFromInput(); };
+    addRow.appendChild(addInput);
+    addRow.appendChild(addBtn);
+    taskCard.appendChild(addRow);
+
+    area.appendChild(taskCard);
+
     // ---- card: aulas de hoje ----
     const todayCard = document.createElement('div');
     todayCard.className = 'feed-card';
@@ -16415,6 +16411,70 @@
       });
     }
     area.appendChild(todayCard);
+
+    // preenche a lista de tarefas (auto + custom) agora que todayItems existe
+    function renderTaskList(){
+      const key = 'tasks_' + todayISO;
+      let tasks = JSON.parse(localStorage.getItem(key) || 'null');
+      if(tasks === null){
+        // primeira vez hoje: gera tarefas automaticas a partir das aulas do dia
+        tasks = [];
+        todayItems.forEach(item => {
+          if(item.tipo === 'NOVO'){
+            tasks.push({ text: 'Preparar aula — ' + item.turma + ': ' + item.titulo, done:false, custom:false });
+            tasks.push({ text: 'Separar materiais — ' + item.turma + ': ' + item.materiais, done:false, custom:false });
+          } else {
+            tasks.push({ text: 'Revisar reforço — ' + item.turma + ' (' + (item.ref_titulo||'—') + ')', done:false, custom:false });
+          }
+        });
+        localStorage.setItem(key, JSON.stringify(tasks));
+      }
+      taskListEl.innerHTML = '';
+      if(tasks.length === 0){
+        const p = document.createElement('p');
+        p.className = 'feed-empty';
+        p.textContent = 'Nenhuma tarefa ainda hoje. Adicione uma abaixo.';
+        taskListEl.appendChild(p);
+        return;
+      }
+      tasks.forEach((t, idx) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px dashed var(--line);';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!t.done;
+        cb.style.marginTop = '3px';
+        cb.onchange = () => {
+          const key2 = 'tasks_' + todayISO;
+          const arr = JSON.parse(localStorage.getItem(key2) || '[]');
+          arr[idx].done = cb.checked;
+          localStorage.setItem(key2, JSON.stringify(arr));
+          txt.style.textDecoration = cb.checked ? 'line-through' : 'none';
+          txt.style.opacity = cb.checked ? '0.45' : '1';
+        };
+        const txt = document.createElement('span');
+        txt.textContent = t.text;
+        txt.style.cssText = 'font-family:"Nunito",sans-serif; font-size:13.5px; flex:1;' + (t.done ? 'text-decoration:line-through; opacity:0.45;' : '');
+        row.appendChild(cb);
+        row.appendChild(txt);
+        if(t.custom){
+          const del = document.createElement('button');
+          del.textContent = '✕';
+          del.style.cssText = 'background:none; border:none; color:var(--rust); cursor:pointer; font-size:13px;';
+          del.onclick = () => {
+            const key2 = 'tasks_' + todayISO;
+            const arr = JSON.parse(localStorage.getItem(key2) || '[]');
+            arr.splice(idx, 1);
+            localStorage.setItem(key2, JSON.stringify(arr));
+            renderTaskList();
+          };
+          row.appendChild(del);
+        }
+        taskListEl.appendChild(row);
+      });
+    }
+    renderTaskList();
+
 
     // ---- card: comprar nos proximos 5 dias letivos ----
     const matCard = document.createElement('div');
@@ -16505,6 +16565,131 @@
     area.appendChild(bibCard);
   }
 
+  /* ==================================================================
+     LISTA DE COMPRAS MENSAL — baseada nas aulas reais do 2º semestre
+     ================================================================== */
+  const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  function allWeekDays(){
+    const all = [];
+    WEEK_DATA.forEach(w => w.days.forEach(d => all.push(d)));
+    return all;
+  }
+
+  // mes/ano atualmente exibido na Lista de Compras (0-indexed month)
+  let matViewYear, matViewMonth;
+  (function initMatMonth(){
+    const days = allWeekDays();
+    const today = new Date(); today.setHours(0,0,0,0);
+    // acha o primeiro dia letivo >= hoje; se nao houver (estamos depois do fim do semestre),
+    // usa o mes do ultimo dia letivo; se hoje for antes do inicio, usa o mes do primeiro dia.
+    let ref = null;
+    for(const d of days){
+      const dObj = new Date(d.date + 'T00:00:00');
+      if(dObj >= today){ ref = dObj; break; }
+    }
+    if(!ref) ref = new Date(days[days.length-1].date + 'T00:00:00');
+    matViewYear = ref.getFullYear();
+    matViewMonth = ref.getMonth();
+  })();
+
+  function renderMaterials(){
+    const area = document.getElementById('matArea');
+    area.innerHTML = '';
+    document.getElementById('matMonthLabel').textContent = MONTH_NAMES[matViewMonth] + ' / ' + matViewYear;
+
+    const days = allWeekDays().filter(d => {
+      const dObj = new Date(d.date + 'T00:00:00');
+      return dObj.getFullYear() === matViewYear && dObj.getMonth() === matViewMonth;
+    });
+
+    // desabilita navegacao fora do intervalo com dados
+    const allDays = allWeekDays();
+    const firstDate = new Date(allDays[0].date + 'T00:00:00');
+    const lastDate = new Date(allDays[allDays.length-1].date + 'T00:00:00');
+    const viewStart = new Date(matViewYear, matViewMonth, 1);
+    const viewEnd = new Date(matViewYear, matViewMonth + 1, 0);
+    document.getElementById('matPrevBtn').disabled = (viewEnd < firstDate);
+    document.getElementById('matNextBtn').disabled = (viewStart > lastDate);
+
+    if(days.length === 0){
+      const note = document.createElement('div');
+      note.className = 'plan-grade-note';
+      note.textContent = 'Sem aulas registradas neste mês (fora do período letivo do 2º semestre, ou mês sem nenhum dia de aula).';
+      area.appendChild(note);
+      return;
+    }
+
+    // agrupa por turma, so os itens NOVO (que pedem material especifico)
+    const byTurma = {};
+    days.forEach(d => {
+      d.items.forEach(item => {
+        if(item.tipo !== 'NOVO') return;
+        if(!byTurma[item.turma]) byTurma[item.turma] = [];
+        byTurma[item.turma].push({ date: d.date, label: d.label, titulo: item.titulo, materiais: item.materiais, turma_key: item.turma_key, num: item.num });
+      });
+    });
+
+    const turmaKeys = Object.keys(byTurma);
+    if(turmaKeys.length === 0){
+      const note = document.createElement('div');
+      note.className = 'plan-grade-note';
+      note.textContent = 'Nenhuma aula com conteúdo novo neste mês — só dias de reforço/prática, sem compras específicas.';
+      area.appendChild(note);
+      return;
+    }
+
+    turmaKeys.forEach(turma => {
+      const catDiv = document.createElement('div');
+      catDiv.className = 'mat-cat';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = turma;
+      catDiv.appendChild(h3);
+
+      byTurma[turma].forEach(entry => {
+        const row = document.createElement('div');
+        row.className = 'mat-item';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        const key = 'matbuy_' + entry.turma_key + '_' + entry.date + '_' + entry.num;
+        cb.checked = localStorage.getItem(key) === '1';
+        cb.onchange = function(){
+          localStorage.setItem(key, cb.checked ? '1' : '0');
+          nameEl.classList.toggle('checked', cb.checked);
+        };
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'mat-item-text';
+
+        const dateTag = document.createElement('div');
+        dateTag.style.cssText = 'font-family:"Quicksand",sans-serif; font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--rust); margin-bottom:2px;';
+        dateTag.textContent = entry.label + ' · ' + entry.titulo;
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'mat-item-name' + (cb.checked ? ' checked' : '');
+        nameEl.textContent = entry.materiais;
+
+        textWrap.appendChild(dateTag);
+        textWrap.appendChild(nameEl);
+        row.appendChild(cb);
+        row.appendChild(textWrap);
+        catDiv.appendChild(row);
+      });
+
+      area.appendChild(catDiv);
+    });
+  }
+
+  function changeMatMonth(delta){
+    matViewMonth += delta;
+    if(matViewMonth > 11){ matViewMonth = 0; matViewYear++; }
+    if(matViewMonth < 0){ matViewMonth = 11; matViewYear--; }
+    renderMaterials();
+  }
+
+  renderMaterials();
   renderBiblio();
   renderFeed();
 </script>
